@@ -2,7 +2,7 @@
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
-const { MongoClient, ServerApiVersion, Collection } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 // Initialize app
 const app = express();
@@ -66,29 +66,172 @@ async function run() {
       res.json(result.value);
     });
 
+    app.patch("/users/:id/role", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { role } = req.body;
+
+        const allowedRoles = ["User", "Admin", "Food Seller"];
+        if (!allowedRoles.includes(role)) {
+          return res.status(400).send({ error: "Invalid role" });
+        }
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ error: "Invalid user ID" });
+        }
+
+        const result = await usersCollection.findOneAndUpdate(
+          { _id: new ObjectId(id) },  // always valid ObjectId
+          { $set: { role } },
+          { returnDocument: "after" }
+        );
+
+        if (!result.value) {
+          return res.status(404).send({ error: "User not found" });
+        }
+
+        res.status(200).send({
+          success: true,
+          message: "User role updated successfully",
+          user: result.value,
+        });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Server error" });
+      }
+    });
+
     // menus APIs
     app.get("/menus", async (req, res) => {
-      const cursor = await menusCollection.find().toArray();
-      res.send(cursor);
+      try {
+        const menus = await menusCollection.find().toArray();
+        res.send(menus);
+      } catch {
+        res.status(500).send({ error: "Failed to fetch menus" });
+      }
     });
 
     app.get("/menus/:id", async (req, res) => {
-      const id = req.params.id;
-      const menu = await menusCollection.findOne({ _id: id });
+      const { id } = req.params;
+      const menu = await menusCollection.findOne({ _id: new ObjectId(id) });
       if (!menu) return res.status(404).send({ error: "Menu not found" });
       res.send(menu);
+    });
+
+    app.get("/menus/user/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+
+        const menus = await menusCollection
+          .find({ postedBy: email })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.send(menus);
+      } catch {
+        res.status(500).send({ error: "Failed to fetch user menus" });
+      }
+    });
+
+    app.post("/menus", async (req, res) => {
+      try {
+        const {
+          name,
+          price,
+          description,
+          image,
+          isAvailable = true,
+          postedBy,
+        } = req.body;
+
+        if (!name || !price || !postedBy) {
+          return res.status(400).send({ error: "Name, price and postedBy required" });
+        }
+
+        const menu = {
+          name,
+          price: Number(price),
+          description: description || "",
+          image: image || "",
+          isAvailable,
+          postedBy,
+          createdAt: new Date(),
+        };
+
+        const result = await menusCollection.insertOne(menu);
+        res.status(201).send(result);
+      } catch {
+        res.status(500).send({ error: "Failed to add menu" });
+      }
+    });
+
+
+    app.patch("/menus/:id", async (req, res) => {
+      const id = req.params.id;
+      const result = await menusCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: req.body }
+      );
+      res.send(result);
+    });
+
+    app.delete("/menus/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        const result = await menusCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        if (!result.deletedCount) {
+          return res.status(404).send({ error: "Menu not found" });
+        }
+
+        res.send({ message: "Menu deleted" });
+      } catch {
+        res.status(400).send({ error: "Invalid ID" });
+      }
     });
 
 
     // orders APIs
     app.post("/orders", async (req, res) => {
-      const data = req.body;
-      if (!data.userId || !data.menuId || !data.menuName || !data.price) {
-        return res.status(400).send({ error: "Missing required order fields" });
+      try {
+        const {
+          userId,
+          username,
+          email,
+          menuId,
+          menuName,
+          price,
+          quantity = 1,
+          status = "pending",
+          createdAt = new Date().toISOString(),
+        } = req.body;
+
+        if (!userId || !menuId || !menuName || !price) {
+          return res.status(400).send({ error: "Missing required order fields" });
+        }
+
+        const order = {
+          userId,
+          username,
+          email,
+          menuId,
+          menuName,
+          price,
+          quantity,
+          status,
+          createdAt,
+        };
+
+        const result = await ordersCollection.insertOne(order);
+        res.status(201).send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to create order" });
       }
-      const result = await ordersCollection.insertOne(data);
-      res.send(result);
     });
+
 
     app.get("/orders", async (req, res) => {
       const orders = await ordersCollection.find().toArray();
