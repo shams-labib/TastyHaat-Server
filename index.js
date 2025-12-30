@@ -1,3 +1,6 @@
+// STRIPE API KEY
+// STRIPE_SECRET_KEY=sk_test_51SdZz4F2swen8cbyEn2dZRzGNWssBt572TvSk5YVrSlGmpTRT2WNt1QXti8JKxN5yFB8yht0W0GF60uYhnNQQVTB00Wk7WyHQy
+
 // Load dependencies
 const express = require("express");
 const cors = require("cors");
