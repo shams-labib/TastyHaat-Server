@@ -2,7 +2,8 @@
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
-const { MongoClient, ServerApiVersion, Collection } = require("mongodb");
+const Stripe = require("stripe");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 // Initialize app
 const app = express();
@@ -13,7 +14,8 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB
-const uri = process.env.uri;
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.gs1mqwb.mongodb.net/team-project?retryWrites=true&w=majority`;
+
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
@@ -25,12 +27,16 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     const db = client.db("team-project");
     const usersCollection = db.collection("user");
     const menusCollection = db.collection("menus");
     const ordersCollection = db.collection("orders");
+    const paymentsCollection = db.collection("payments");
+
+    // Initialize Stripe
+    const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
     // users data
 
@@ -67,27 +73,96 @@ async function run() {
       res.json(result.value);
     });
 
+    app.patch("/users/:id/role", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { role } = req.body;
+
+        const allowedRoles = ["User", "Admin", "Food Seller"];
+        if (!allowedRoles.includes(role)) {
+          return res.status(400).send({ error: "Invalid role" });
+        }
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ error: "Invalid user ID" });
+        }
+
+        const result = await usersCollection.findOneAndUpdate(
+          { _id: new ObjectId(id) }, // always valid ObjectId
+          { $set: { role } },
+          { returnDocument: "after" }
+        );
+
+        if (!result.value) {
+          return res.status(404).send({ error: "User not found" });
+        }
+
+        res.status(200).send({
+          success: true,
+          message: "User role updated successfully",
+          user: result.value,
+        });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Server error" });
+      }
+    });
+
     // menus APIs
     app.get("/menus", async (req, res) => {
-      const cursor = await menusCollection.find().toArray();
-      res.send(cursor);
+      try {
+        const menus = await menusCollection.find().toArray();
+        res.send(menus);
+      } catch {
+        res.status(500).send({ error: "Failed to fetch menus" });
+      }
     });
 
     app.get("/menus/:id", async (req, res) => {
-      const id = req.params.id;
-      const menu = await menusCollection.findOne({ _id: id });
+      const { id } = req.params;
+      const menu = await menusCollection.findOne({ _id: new ObjectId(id) });
       if (!menu) return res.status(404).send({ error: "Menu not found" });
       res.send(menu);
     });
 
     // orders APIs
     app.post("/orders", async (req, res) => {
-      const data = req.body;
-      if (!data.userId || !data.menuId || !data.menuName || !data.price) {
-        return res.status(400).send({ error: "Missing required order fields" });
+      try {
+        const {
+          userId,
+          username,
+          email,
+          menuId,
+          menuName,
+          price,
+          quantity = 1,
+          status = "pending",
+          createdAt = new Date().toISOString(),
+        } = req.body;
+
+        if (!userId || !menuId || !menuName || !price) {
+          return res
+            .status(400)
+            .send({ error: "Missing required order fields" });
+        }
+
+        const order = {
+          userId,
+          username,
+          email,
+          menuId,
+          menuName,
+          price,
+          quantity,
+          status,
+          createdAt,
+        };
+
+        const result = await ordersCollection.insertOne(order);
+        res.status(201).send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to create order" });
       }
-      const result = await ordersCollection.insertOne(data);
-      res.send(result);
     });
 
     app.get("/orders", async (req, res) => {
@@ -101,10 +176,10 @@ async function run() {
       res.send(orders);
     });
 
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!"
+    // );
   } finally {
   }
 }
@@ -112,7 +187,7 @@ run().catch(console.dir);
 
 // Routes
 app.get("/", (req, res) => {
-  res.send("Mal is running");
+  res.send("TastyHaat Server is running");
 });
 
 // Start server
