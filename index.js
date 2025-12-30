@@ -2,6 +2,8 @@
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
+const { MongoClient, ServerApiVersion, Collection } = require("mongodb");
+const Stripe = require("stripe");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 // Initialize app
@@ -32,6 +34,10 @@ async function run() {
     const usersCollection = db.collection("user");
     const menusCollection = db.collection("menus");
     const ordersCollection = db.collection("orders");
+    const paymentsCollection = db.collection("payments");
+
+    // Initialize Stripe
+    const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
     // users data
 
@@ -63,7 +69,8 @@ async function run() {
         { returnDocument: "after" }
       );
 
-      if (!result.value) return res.status(404).json({ message: "User not found" });
+      if (!result.value)
+        return res.status(404).json({ message: "User not found" });
       res.json(result.value);
     });
 
