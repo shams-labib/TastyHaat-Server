@@ -2,7 +2,6 @@
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
-const { MongoClient, ServerApiVersion, Collection } = require("mongodb");
 const Stripe = require("stripe");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
@@ -88,7 +87,7 @@ async function run() {
         }
 
         const result = await usersCollection.findOneAndUpdate(
-          { _id: new ObjectId(id) },  // always valid ObjectId
+          { _id: new ObjectId(id) }, // always valid ObjectId
           { $set: { role } },
           { returnDocument: "after" }
         );
@@ -152,7 +151,9 @@ async function run() {
         } = req.body;
 
         if (!name || !price || !postedBy) {
-          return res.status(400).send({ error: "Name, price and postedBy required" });
+          return res
+            .status(400)
+            .send({ error: "Name, price and postedBy required" });
         }
 
         const menu = {
@@ -171,7 +172,6 @@ async function run() {
         res.status(500).send({ error: "Failed to add menu" });
       }
     });
-
 
     app.patch("/menus/:id", async (req, res) => {
       const id = req.params.id;
@@ -200,7 +200,6 @@ async function run() {
       }
     });
 
-
     // orders APIs
     app.post("/orders", async (req, res) => {
       try {
@@ -217,7 +216,9 @@ async function run() {
         } = req.body;
 
         if (!userId || !menuId || !menuName || !price) {
-          return res.status(400).send({ error: "Missing required order fields" });
+          return res
+            .status(400)
+            .send({ error: "Missing required order fields" });
         }
 
         const order = {
@@ -239,7 +240,6 @@ async function run() {
       }
     });
 
-
     app.get("/orders", async (req, res) => {
       const orders = await ordersCollection.find().toArray();
       res.send(orders);
@@ -251,47 +251,37 @@ async function run() {
       res.send(orders);
     });
 
-    // Stripe
     app.post("/create-payment-intent", async (req, res) => {
-      const { amount, userEmail, userName, orderId, description } = req.body;
-
       try {
+        const { amount, userEmail, userName, description } = req.body;
+    
+        if (!amount || Number(amount) <= 0) {
+          return res.status(400).json({ error: "Invalid amount" });
+        }
+    
         const session = await stripe.checkout.sessions.create({
+          mode: "payment",
           payment_method_types: ["card"],
           line_items: [
             {
               price_data: {
-                currency: "bdt",
-                product_data: { name: description || "Payment" },
+                currency: "usd",
+                product_data: {
+                  name: description || "Order Payment",
+                },
                 unit_amount: Math.round(Number(amount) * 100),
               },
               quantity: 1,
             },
           ],
-          mode: "payment",
-          success_url: `http://localhost:5173/payments-success?session_id={CHECKOUT_SESSION_ID}&email=${encodeURIComponent(
-            userEmail
-          )}&name=${encodeURIComponent(
-            userName
-          )}&amount=${amount}&orderId=${encodeURIComponent(orderId || "")}`,
-          cancel_url: `http://localhost:5173/payments-cancel`,
+          success_url: "http://localhost:5173/payments-success",
+          cancel_url: "http://localhost:5173/payments-cancel",
         });
-
-        await paymentsCollection.insertOne({
-          userName,
-          userEmail,
-          amount,
-          orderId: orderId || null,
-          description: description || null,
-          createdAt: new Date(),
-          stripeSessionId: session.id,
-          paid: true,
-        });
-
-        res.send({ url: session.url });
-      } catch (err) {
-        console.error(err);
-        res.status(500).send({ error: "Failed to create payment session" });
+    
+        res.json({ url: session.url });
+      } catch (error) {
+        console.error("Stripe error:", error.message);
+        res.status(500).json({ error: error.message });
       }
     });
 
