@@ -2,6 +2,8 @@
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
+const { MongoClient, ServerApiVersion, Collection } = require("mongodb");
+const Stripe = require("stripe");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 // Initialize app
@@ -31,6 +33,10 @@ async function run() {
     const usersCollection = db.collection("user");
     const menusCollection = db.collection("menus");
     const ordersCollection = db.collection("orders");
+    const paymentsCollection = db.collection("payments");
+
+    // Initialize Stripe
+    const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
     // users data
 
@@ -62,7 +68,8 @@ async function run() {
         { returnDocument: "after" }
       );
 
-      if (!result.value) return res.status(404).json({ message: "User not found" });
+      if (!result.value)
+        return res.status(404).json({ message: "User not found" });
       res.json(result.value);
     });
 
@@ -242,6 +249,50 @@ async function run() {
       const userId = req.params.userId;
       const orders = await ordersCollection.find({ userId }).toArray();
       res.send(orders);
+    });
+
+    // Stripe
+    app.post("/create-payment-intent", async (req, res) => {
+      const { amount, userEmail, userName, orderId, description } = req.body;
+
+      try {
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ["card"],
+          line_items: [
+            {
+              price_data: {
+                currency: "bdt",
+                product_data: { name: description || "Payment" },
+                unit_amount: Math.round(Number(amount) * 100),
+              },
+              quantity: 1,
+            },
+          ],
+          mode: "payment",
+          success_url: `http://localhost:5173/payments-success?session_id={CHECKOUT_SESSION_ID}&email=${encodeURIComponent(
+            userEmail
+          )}&name=${encodeURIComponent(
+            userName
+          )}&amount=${amount}&orderId=${encodeURIComponent(orderId || "")}`,
+          cancel_url: `http://localhost:5173/payments-cancel`,
+        });
+
+        await paymentsCollection.insertOne({
+          userName,
+          userEmail,
+          amount,
+          orderId: orderId || null,
+          description: description || null,
+          createdAt: new Date(),
+          stripeSessionId: session.id,
+          paid: true,
+        });
+
+        res.send({ url: session.url });
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ error: "Failed to create payment session" });
+      }
     });
 
     await client.db("admin").command({ ping: 1 });
