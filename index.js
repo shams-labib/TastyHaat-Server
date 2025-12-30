@@ -13,7 +13,8 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB
-const uri = process.env.uri;
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.gs1mqwb.mongodb.net/team-project?retryWrites=true&w=majority`
+
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
@@ -25,7 +26,7 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     const db = client.db("team-project");
     const usersCollection = db.collection("user");
@@ -244,10 +245,10 @@ async function run() {
       res.send(orders);
     });
 
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!"
+    // );
   } finally {
   }
 }
@@ -255,7 +256,7 @@ run().catch(console.dir);
 
 // Routes
 app.get("/", (req, res) => {
-  res.send("Mal is running");
+  res.send("TastyHaat Server is running");
 });
 
 // Start server
