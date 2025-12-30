@@ -62,7 +62,8 @@ async function run() {
         { returnDocument: "after" }
       );
 
-      if (!result.value) return res.status(404).json({ message: "User not found" });
+      if (!result.value)
+        return res.status(404).json({ message: "User not found" });
       res.json(result.value);
     });
 
@@ -78,7 +79,6 @@ async function run() {
       if (!menu) return res.status(404).send({ error: "Menu not found" });
       res.send(menu);
     });
-
 
     // orders APIs
     app.post("/orders", async (req, res) => {
