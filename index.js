@@ -2,7 +2,6 @@
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
-const { MongoClient, ServerApiVersion, Collection } = require("mongodb");
 const Stripe = require("stripe");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
@@ -15,7 +14,7 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.gs1mqwb.mongodb.net/team-project?retryWrites=true&w=majority`
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.gs1mqwb.mongodb.net/team-project?retryWrites=true&w=majority`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -89,7 +88,7 @@ async function run() {
         }
 
         const result = await usersCollection.findOneAndUpdate(
-          { _id: new ObjectId(id) },  // always valid ObjectId
+          { _id: new ObjectId(id) }, // always valid ObjectId
           { $set: { role } },
           { returnDocument: "after" }
         );
@@ -153,7 +152,9 @@ async function run() {
         } = req.body;
 
         if (!name || !price || !postedBy) {
-          return res.status(400).send({ error: "Name, price and postedBy required" });
+          return res
+            .status(400)
+            .send({ error: "Name, price and postedBy required" });
         }
 
         const menu = {
@@ -172,7 +173,6 @@ async function run() {
         res.status(500).send({ error: "Failed to add menu" });
       }
     });
-
 
     app.patch("/menus/:id", async (req, res) => {
       const id = req.params.id;
@@ -201,7 +201,6 @@ async function run() {
       }
     });
 
-
     // orders APIs
     app.post("/orders", async (req, res) => {
       try {
@@ -218,7 +217,9 @@ async function run() {
         } = req.body;
 
         if (!userId || !menuId || !menuName || !price) {
-          return res.status(400).send({ error: "Missing required order fields" });
+          return res
+            .status(400)
+            .send({ error: "Missing required order fields" });
         }
 
         const order = {
@@ -240,7 +241,6 @@ async function run() {
       }
     });
 
-
     app.get("/orders", async (req, res) => {
       const orders = await ordersCollection.find().toArray();
       res.send(orders);
@@ -252,10 +252,48 @@ async function run() {
       res.send(orders);
     });
 
-    // await client.db("admin").command({ ping: 1 });
-    // console.log(
-    //   "Pinged your deployment. You successfully connected to MongoDB!"
-    // );
+    // ------------STRIPE------------
+
+    app.post("/create-payment-intent", async (req, res) => {
+      try {
+        const { amount, userEmail, userName, description } = req.body;
+
+        if (!amount || Number(amount) <= 0) {
+          return res.status(400).json({ error: "Invalid amount" });
+        }
+
+        const session = await stripe.checkout.sessions.create({
+          mode: "payment",
+          payment_method_types: ["card"],
+          line_items: [
+            {
+              price_data: {
+                currency: "usd",
+                product_data: {
+                  name: description || "Order Payment",
+                },
+                unit_amount: Math.round(Number(amount) * 100),
+              },
+              quantity: 1,
+            },
+          ],
+          success_url: "http://localhost:5173/payments-success",
+          cancel_url: "http://localhost:5173/payments-cancel",
+        });
+
+        res.json({ url: session.url });
+      } catch (error) {
+        console.error("Stripe error:", error.message);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // ------------STRIPE------------
+
+    await client.db("admin").command({ ping: 1 });
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!"
+    );
   } finally {
   }
 }
@@ -270,4 +308,3 @@ app.get("/", (req, res) => {
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
-
