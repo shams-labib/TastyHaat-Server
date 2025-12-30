@@ -14,7 +14,8 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB
-const uri = process.env.uri;
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.gs1mqwb.mongodb.net/team-project?retryWrites=true&w=majority`;
+
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
@@ -26,7 +27,7 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     const db = client.db("team-project");
     const usersCollection = db.collection("user");
@@ -251,14 +252,16 @@ async function run() {
       res.send(orders);
     });
 
+    // ------------STRIPE------------
+
     app.post("/create-payment-intent", async (req, res) => {
       try {
         const { amount, userEmail, userName, description } = req.body;
-    
+
         if (!amount || Number(amount) <= 0) {
           return res.status(400).json({ error: "Invalid amount" });
         }
-    
+
         const session = await stripe.checkout.sessions.create({
           mode: "payment",
           payment_method_types: ["card"],
@@ -277,13 +280,15 @@ async function run() {
           success_url: "http://localhost:5173/payments-success",
           cancel_url: "http://localhost:5173/payments-cancel",
         });
-    
+
         res.json({ url: session.url });
       } catch (error) {
         console.error("Stripe error:", error.message);
         res.status(500).json({ error: error.message });
       }
     });
+
+    // ------------STRIPE------------
 
     await client.db("admin").command({ ping: 1 });
     console.log(
@@ -296,7 +301,7 @@ run().catch(console.dir);
 
 // Routes
 app.get("/", (req, res) => {
-  res.send("Mal is running");
+  res.send("TastyHaat Server is running");
 });
 
 // Start server
