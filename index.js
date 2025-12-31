@@ -10,7 +10,12 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL,
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // MongoDB
@@ -88,7 +93,7 @@ async function run() {
         }
 
         const result = await usersCollection.findOneAndUpdate(
-          { _id: new ObjectId(id) }, // always valid ObjectId
+          { _id: new ObjectId(id) },
           { $set: { role } },
           { returnDocument: "after" }
         );
@@ -277,8 +282,8 @@ async function run() {
               quantity: 1,
             },
           ],
-          success_url: "http://localhost:5173/payments-success",
-          cancel_url: "http://localhost:5173/payments-cancel",
+          success_url: `${process.env.CLIENT_URL}/payments-success`,
+          cancel_url: `${process.env.CLIENT_URL}/payments-cancel`,
         });
 
         res.json({ url: session.url });
@@ -306,5 +311,5 @@ app.get("/", (req, res) => {
 
 // Start server
 app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+  console.log(`Server is running on PORT:${port}`);
 });
