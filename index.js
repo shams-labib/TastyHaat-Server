@@ -45,11 +45,30 @@ async function run() {
 
     // users data
 
+    //start rewrite code by Gantabya
+
     app.post("/users", async (req, res) => {
-      const data = req.body;
-      const result = await usersCollection.insertOne(data);
-      res.send(result);
+      try {
+        const data = {
+          ...req.body,
+          createdAt: new Date(),
+        };
+
+        const existingUser = await usersCollection.findOne({ email: data.email });
+        if (existingUser) {
+          return res.status(409).send({ message: "User already exists" });
+        }
+
+        const result = await usersCollection.insertOne(data);
+
+        res.send(result);
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ message: "Internal Server Error" });
+      }
     });
+
+    //end rewrite code by Gantabya
 
     app.get("/users", async (req, res) => {
       const cursor = await usersCollection.find().toArray();
@@ -63,20 +82,22 @@ async function run() {
       res.send(user);
     });
 
-    app.put("/users/:uid", async (req, res) => {
-      const { uid } = req.params;
-      const updatedData = req.body;
+    app.put("/users/:id", async (req, res) => {
+      const { id } = req.params;
 
       const result = await usersCollection.findOneAndUpdate(
-        { uid },
-        { $set: updatedData },
+        { _id: new ObjectId(id) },
+        { $set: req.body },
         { returnDocument: "after" }
       );
 
-      if (!result.value)
-        return res.status(404).json({ message: "User not found" });
-      res.json(result.value);
+      if (!result.value) {
+        return res.status(404).send({ message: "User not found" });
+      }
+
+      res.send(result.value);
     });
+
 
     app.patch("/users/:id/role", async (req, res) => {
       try {
