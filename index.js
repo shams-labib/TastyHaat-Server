@@ -45,8 +45,6 @@ async function run() {
 
     // users data
 
-    //start rewrite code by Gantabya
-
     app.post("/users", async (req, res) => {
       try {
         const data = {
@@ -67,8 +65,6 @@ async function run() {
         res.status(500).send({ message: "Internal Server Error" });
       }
     });
-
-    //end rewrite code by Gantabya
 
     app.get("/users", async (req, res) => {
       const cursor = await usersCollection.find().toArray();
