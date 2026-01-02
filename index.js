@@ -98,11 +98,11 @@ async function run() {
     app.patch("/users/:id/role", async (req, res) => {
       try {
         const { id } = req.params;
-        const { role } = req.body;
+        const role = req.body?.role?.trim();
 
-        const allowedRoles = ["User", "Admin", "Food Seller"];
+        const allowedRoles = ["user", "admin", "seller"];
         if (!allowedRoles.includes(role)) {
-          return res.status(400).send({ error: "Invalid role" });
+          return res.status(400).send({ error: "Invalid role provided" });
         }
 
         if (!ObjectId.isValid(id)) {
@@ -112,7 +112,7 @@ async function run() {
         const result = await usersCollection.findOneAndUpdate(
           { _id: new ObjectId(id) },
           { $set: { role } },
-          { returnDocument: "after" }
+          { returnDocument: "after", upsert: false }
         );
 
         if (!result.value) {
@@ -125,10 +125,11 @@ async function run() {
           user: result.value,
         });
       } catch (error) {
-        console.error(error);
+        console.error("Update role error:", error);
         res.status(500).send({ error: "Server error" });
       }
     });
+
 
     // menus APIs
     app.get("/menus", async (req, res) => {
